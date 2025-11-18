@@ -1,0 +1,112 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: newscatcher_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-newscatcher}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-newscatcher_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-newscatcher_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-newscatcher}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - newscatcher_network
+
+  # Redis for caching and Celery message broker
+  redis:
+    image: redis:7-alpine
+    container_name: newscatcher_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - newscatcher_network
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: newscatcher_backend
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-newscatcher}:${POSTGRES_PASSWORD:-newscatcher_pass}@postgres:5432/${POSTGRES_DB:-newscatcher_db}
+      REDIS_URL: redis://redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - newscatcher_network
+
+  # Celery Worker for background scraping
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: newscatcher_celery
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-newscatcher}:${POSTGRES_PASSWORD:-newscatcher_pass}@postgres:5432/${POSTGRES_DB:-newscatcher_db}
+      REDIS_URL: redis://redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: celery -A app.celery_worker worker --loglevel=info --concurrency=4
+    networks:
+      - newscatcher_network
+
+  # Streamlit Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: newscatcher_frontend
+    environment:
+      BACKEND_URL: http://backend:8000
+    ports:
+      - "8501:8501"
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+    command: streamlit run app.py --server.address=0.0.0.0 --server.port=8501
+    networks:
+      - newscatcher_network
+
+networks:
+  newscatcher_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+
