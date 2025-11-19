@@ -1,5 +1,6 @@
 """Streamlit frontend for NewsCatcher."""
 import os
+import re
 import streamlit as st
 import requests
 from typing import List, Dict, Optional
@@ -64,6 +65,19 @@ def apply_custom_css():
             gap: 0.5rem;
             margin-top: 0.75rem;
             font-size: 0.85rem;
+        }}
+        .article-open-link {{
+            display: inline-block;
+            margin-top: 0.5rem;
+            padding: 0.4rem 0.8rem;
+            border-radius: 0.3rem;
+            background-color: {secondary};
+            color: white;
+            text-decoration: none;
+            font-weight: 600;
+        }}
+        .article-open-link:hover {{
+            opacity: 0.85;
         }}
         .tag {{
             padding: 0.25rem 0.5rem;
@@ -264,19 +278,55 @@ def mark_article_seen(article_ids: List[int]):
         st.error(f"Error marking articles as seen: {e}")
 
 
+def strip_html(text: str) -> str:
+    """Remove HTML tags and return plain text."""
+    if not text:
+        return ""
+    # Remove HTML tags
+    cleaned = re.sub(r"<[^>]+>", " ", text)
+    # Collapse whitespace
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned
+
+
+def sanitize_badge(text: str) -> Optional[str]:
+    """Sanitize category/tag text to avoid leftover HTML like </div>."""
+    clean = strip_html(text)
+    if not clean:
+        return None
+    # Skip stray tag fragments
+    lowered = clean.strip().lower()
+    if lowered in {"div", "/div"}:
+        return None
+    return clean.strip()
+
+
 def render_article_card(article: Dict):
     """Render a news article card."""
     
-    # Escape HTML in title and summary
-    import html
-    title = html.escape(article.get('title', 'No Title'))
-    summary = html.escape(article.get('summary', 'No summary available.'))
+    import html as html_lib
+    
+    # Clean and escape title and summary
+    raw_title = article.get('title', 'No Title')
+    raw_summary = article.get('summary', 'No summary available.')
+    title = html_lib.escape(strip_html(raw_title))
+    summary = html_lib.escape(strip_html(raw_summary))
     
     # Build categories HTML
-    categories_html = " ".join([f'<span class="category">{html.escape(cat)}</span>' for cat in article.get("categories", [])])
+    categories_html = " ".join([
+        f'<span class="category">{html_lib.escape(cat_clean)}</span>'
+        for cat in article.get("categories", [])
+        for cat_clean in [sanitize_badge(cat)]
+        if cat_clean
+    ])
     
     # Build tags HTML
-    tags_html = " ".join([f'<span class="tag">{html.escape(tag)}</span>' for tag in article.get("tags", [])])
+    tags_html = " ".join([
+        f'<span class="tag">{html_lib.escape(tag_clean)}</span>'
+        for tag in article.get("tags", [])
+        for tag_clean in [sanitize_badge(tag)]
+        if tag_clean
+    ])
     
     # Get relevance score if criteria is selected
     relevance_html = ""
@@ -299,36 +349,43 @@ def render_article_card(article: Dict):
         except:
             pass
     
-    # Complete card HTML
-    st.markdown(f"""
-    <div class="news-card">
-        <div class="news-title">
-            {title}{unseen_badge}
+    with st.container():
+        # Render the card markup
+        st.markdown(f"""
+        <div class="news-card">
+            <div class="news-title">
+                {title}{unseen_badge}
+            </div>
+            <div class="news-summary">
+                {summary}
+            </div>
+            <div class="news-meta">
+                {categories_html}
+                {tags_html}
+                {relevance_html}
+                {published_html}
+            </div>
         </div>
-        <div class="news-summary">
-            {summary}
-        </div>
-        <div class="news-meta">
-            {categories_html}
-            {tags_html}
-            {relevance_html}
-            {published_html}
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Action buttons right after (will appear below card)
-    col1, col2, col3 = st.columns([1, 1, 8])
-    with col1:
-        st.link_button("🔗 Open", article['url'], use_container_width=True)
-    with col2:
-        if not article.get("is_seen", True):
-            if st.button("✓ Seen", key=f"seen_{article['id']}", use_container_width=True):
-                mark_article_seen([article['id']])
-                st.rerun()
-    
-    # Add spacing between articles
-    st.markdown("<br>", unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
+        
+        # Action buttons within the card block
+        col_open, col_seen = st.columns([1, 1])
+        with col_open:
+            st.link_button(
+                "🔗 Open Article",
+                article['url'],
+                use_container_width=True
+            )
+        with col_seen:
+            if not article.get("is_seen", True):
+                if st.button("✓ Mark as Seen", key=f"seen_{article['id']}"):
+                    mark_article_seen([article['id']])
+                    st.rerun()
+            else:
+                st.caption("Already seen")
+        
+        # Spacing between articles
+        st.markdown("<div style='margin-bottom: 1.5rem;'></div>", unsafe_allow_html=True)
 
 
 def main():
@@ -394,41 +451,43 @@ def main():
         search_query = st.text_input("🔍 Search articles", placeholder="Search by title, summary, or content...")
         
         if search_query:
-            # Show search results
+            # Show search results in 2-column grid
             articles = search_articles(search_query)
             if articles:
                 st.info(f"Found {len(articles)} articles matching '{search_query}'")
+                
                 for article in articles:
                     render_article_card(article)
             else:
                 st.warning(f"No articles found for '{search_query}'")
         else:
-            # Show regular filtered feed
-            # Filters
-            col1, col2, col3 = st.columns([2, 1, 1])
-        
-        with col1:
-            criteria_list = fetch_criteria()
-            criteria_options = {"All Articles": None}
-            criteria_options.update({c["name"]: c["id"] for c in criteria_list})
+            # Filters row
+            filter_col, relevance_col, unseen_col = st.columns([3, 1, 1])
             
-            selected = st.selectbox(
-                "Filter by Criteria",
-                options=list(criteria_options.keys())
-            )
-            st.session_state.selected_criteria = criteria_options[selected]
-        
-        with col2:
-            if st.session_state.selected_criteria:
-                st.session_state.min_relevance = st.slider(
-                    "Min Relevance",
-                    min_value=0.0,
-                    max_value=1.0,
-                    value=st.session_state.min_relevance,
-                    step=0.1
+            with filter_col:
+                criteria_list = fetch_criteria()
+                criteria_options = {"All Articles": None}
+                criteria_options.update({c["name"]: c["id"] for c in criteria_list})
+                
+                selected = st.selectbox(
+                    "Filter by Criteria",
+                    options=list(criteria_options.keys())
                 )
-        
-            with col3:
+                st.session_state.selected_criteria = criteria_options[selected]
+            
+            with relevance_col:
+                if st.session_state.selected_criteria:
+                    st.session_state.min_relevance = st.slider(
+                        "Min Relevance",
+                        min_value=0.0,
+                        max_value=1.0,
+                        value=st.session_state.min_relevance,
+                        step=0.1
+                    )
+                else:
+                    st.markdown("<div style='height: 1.6rem;'></div>", unsafe_allow_html=True)
+            
+            with unseen_col:
                 unseen_only = st.checkbox("Unseen Only", value=False)
             
             # Fetch and display articles
