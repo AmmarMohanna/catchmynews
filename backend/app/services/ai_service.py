@@ -4,6 +4,7 @@ from typing import List, Dict, Optional
 import json
 
 from openai import OpenAI
+from fuzzywuzzy import fuzz
 
 from app.config import settings
 
@@ -142,15 +143,23 @@ Respond in JSON format:
             if not criteria_keywords and not criteria_prompt:
                 return 0.0
             
-            # Combine title and summary for matching
+            # Combine title and summary for matching (normalize spaces and punctuation)
             article_text = f"{article_title} {article_summary}".lower()
+            # Normalize: replace non-alphanumeric with spaces for better matching
+            import re
+            article_text_normalized = re.sub(r'[^\w\s]', ' ', article_text)
             
             # Build list of all keywords to match
             all_keywords = []
             
-            # Add explicit keywords
+            # Add explicit keywords (normalize them too)
             if criteria_keywords:
-                all_keywords.extend([kw.lower().strip() for kw in criteria_keywords])
+                normalized_keywords = []
+                for kw in criteria_keywords:
+                    # Normalize keyword: lowercase, replace dashes/underscores with spaces
+                    normalized = re.sub(r'[-_]', ' ', kw.lower().strip())
+                    normalized_keywords.append(normalized)
+                all_keywords.extend(normalized_keywords)
             
             # Extract keywords from prompt (simple word extraction)
             if criteria_prompt:
@@ -171,20 +180,49 @@ Respond in JSON format:
             if not all_keywords:
                 return 0.0
             
-            # Count keyword matches
+            # Count keyword matches with fuzzy matching
             matched_count = 0
-            for keyword in all_keywords:
-                if keyword in article_text:
-                    matched_count += 1
+            fuzzy_matched = 0
             
-            # Calculate score as percentage of matched keywords
-            score = matched_count / len(all_keywords)
+            for keyword in all_keywords:
+                # Exact match (substring search)
+                if keyword in article_text_normalized:
+                    matched_count += 1
+                else:
+                    # Fuzzy match - check if similar phrases exist
+                    article_words = article_text_normalized.split()
+                    
+                    # For multi-word keywords, check against word sequences
+                    keyword_words = keyword.split()
+                    if len(keyword_words) > 1:
+                        # Check multi-word phrases
+                        for i in range(len(article_words) - len(keyword_words) + 1):
+                            phrase = ' '.join(article_words[i:i+len(keyword_words)])
+                            ratio = fuzz.ratio(keyword, phrase)
+                            if ratio >= 85:
+                                fuzzy_matched += 1
+                                break
+                    else:
+                        # Single word - check against individual words
+                        best_ratio = 0
+                        for word in article_words:
+                            if len(word) > 3 and len(keyword) > 3:
+                                ratio = fuzz.ratio(keyword, word)
+                                if ratio > best_ratio:
+                                    best_ratio = ratio
+                        
+                        if best_ratio >= 85:
+                            fuzzy_matched += 1
+            
+            # Calculate score (exact matches count more than fuzzy)
+            total_matches = matched_count + (fuzzy_matched * 0.7)
+            score = total_matches / len(all_keywords)
             
             # Boost score if multiple matches (diminishing returns)
             if matched_count > 1:
                 score = min(score * 1.2, 1.0)
             
-            logger.debug(f"Keyword matching for '{article_title[:50]}...': {matched_count}/{len(all_keywords)} keywords matched, score={score:.2f}")
+            logger.debug(f"Keyword matching for '{article_title[:50]}...': {matched_count} exact, {fuzzy_matched} fuzzy/{len(all_keywords)} total, score={score:.2f}")
             return score
             
         except Exception as e:

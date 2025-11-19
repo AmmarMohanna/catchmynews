@@ -14,6 +14,7 @@ from app.models.article import Article
 from app.models.scraping_job import ScrapingJob
 from app.services.scraper import WebScraper
 from app.services.ai_service import AIService
+from app.services.cache_service import cache_service
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -100,10 +101,18 @@ def scrape_url_task(self, url_id: int, discover_subdomains: bool = True):
             db.commit()
             job.subdomains_found = len(subdomain_urls)
         
-        # Scrape main URL
+        # Scrape main URL with incremental scraping support
         logger.info(f"Scraping {url_obj.url}")
-        articles_data = asyncio.run(scraper.scrape_website(url_obj.url))
+        articles_data, etag, last_modified = asyncio.run(
+            scraper.scrape_website(url_obj.url, url_obj.last_etag, url_obj.last_modified)
+        )
         job.pages_scraped = len(articles_data)
+        
+        # Update cache headers
+        if etag:
+            url_obj.last_etag = etag
+        if last_modified:
+            url_obj.last_modified = last_modified
         
         # Process with AI
         logger.info(f"Processing {len(articles_data)} articles with AI")
@@ -111,18 +120,32 @@ def scrape_url_task(self, url_id: int, discover_subdomains: bool = True):
         
         # Save articles to database
         new_articles = 0
+        duplicates_skipped = 0
         for article_data in articles_data:
-            # Check if article already exists
-            existing = db.query(Article).filter(Article.url == article_data['url']).first()
+            # Generate content hash for deduplication
+            content_hash = Article.generate_content_hash(
+                article_data.get('title', ''),
+                article_data.get('content', '')
+            )
+            
+            # Check if article already exists by URL or content hash
+            existing = db.query(Article).filter(
+                (Article.url == article_data['url']) | 
+                (Article.content_hash == content_hash)
+            ).first()
             
             if existing:
-                # Update existing article
-                existing.title = article_data.get('title', existing.title)
-                existing.content = article_data.get('content', existing.content)
-                existing.summary = article_data.get('summary', existing.summary)
-                existing.categories = article_data.get('categories', existing.categories)
-                existing.tags = article_data.get('tags', existing.tags)
-                existing.scraped_at = datetime.utcnow()
+                # Skip duplicate - only update if URL matches but content changed
+                if existing.url == article_data['url'] and existing.content_hash != content_hash:
+                    existing.title = article_data.get('title', existing.title)
+                    existing.content = article_data.get('content', existing.content)
+                    existing.summary = article_data.get('summary', existing.summary)
+                    existing.categories = article_data.get('categories', existing.categories)
+                    existing.tags = article_data.get('tags', existing.tags)
+                    existing.content_hash = content_hash
+                    existing.scraped_at = datetime.utcnow()
+                else:
+                    duplicates_skipped += 1
             else:
                 # Create new article
                 article = Article(
@@ -130,6 +153,7 @@ def scrape_url_task(self, url_id: int, discover_subdomains: bool = True):
                     title=article_data.get('title', ''),
                     content=article_data.get('content', ''),
                     summary=article_data.get('summary', ''),
+                    content_hash=content_hash,
                     source_url_id=url_id,
                     scraped_at=datetime.utcnow(),
                     categories=article_data.get('categories', []),
@@ -150,13 +174,18 @@ def scrape_url_task(self, url_id: int, discover_subdomains: bool = True):
         job.completed_at = datetime.utcnow()
         db.commit()
         
-        logger.info(f"Completed scrape task for {url_obj.url}: {new_articles} new articles")
+        # Invalidate caches after new articles
+        if new_articles > 0:
+            cache_service.invalidate_articles_cache()
+        
+        logger.info(f"Completed scrape task for {url_obj.url}: {new_articles} new articles, {duplicates_skipped} duplicates skipped")
         
         return {
             "url": url_obj.url,
             "pages_scraped": job.pages_scraped,
             "articles_found": job.articles_found,
-            "subdomains_found": job.subdomains_found
+            "subdomains_found": job.subdomains_found,
+            "duplicates_skipped": duplicates_skipped
         }
         
     except Exception as e:

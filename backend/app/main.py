@@ -24,6 +24,7 @@ from app.api.schemas import (
 )
 from app.services.scraper import WebScraper
 from app.services.ai_service import AIService
+from app.services.cache_service import cache_service
 from app.celery_worker import scrape_url_task, scrape_all_urls_task, calculate_relevance_scores_task
 
 # Configure logging
@@ -297,6 +298,56 @@ async def get_articles(
     return articles
 
 
+@app.get("/articles/search", response_model=List[ArticleResponse], tags=["Articles"])
+async def search_articles(
+    q: str = Query(..., min_length=2, description="Search query"),
+    limit: int = Query(50, le=200),
+    offset: int = 0,
+    db: Session = Depends(get_db)
+):
+    """Search articles by title, summary, or content with caching."""
+    # Check cache first (cache for 5 minutes)
+    cache_key = f"search:{q}:{limit}:{offset}"
+    cached = cache_service.get(cache_key)
+    if cached:
+        logger.debug(f"Returning cached search results for '{q}'")
+        return [ArticleResponse(**a) for a in cached]
+    
+    search_term = f"%{q}%"
+    
+    articles = db.query(Article).filter(
+        Article.is_active == True
+    ).filter(
+        (Article.title.ilike(search_term)) |
+        (Article.summary.ilike(search_term)) |
+        (Article.content.ilike(search_term))
+    ).order_by(
+        Article.scraped_at.desc()
+    ).offset(offset).limit(limit).all()
+    
+    # Cache results for 5 minutes
+    article_dicts = [
+        {
+            "id": a.id,
+            "url": a.url,
+            "title": a.title,
+            "summary": a.summary,
+            "categories": a.categories,
+            "tags": a.tags,
+            "relevance_scores": a.relevance_scores,
+            "source_url_id": a.source_url_id,
+            "published_at": a.published_at,
+            "scraped_at": a.scraped_at,
+            "is_seen": a.is_seen
+        }
+        for a in articles
+    ]
+    cache_service.set(cache_key, article_dicts, ttl=300)
+    
+    logger.info(f"Search for '{q}' returned {len(articles)} results")
+    return articles
+
+
 @app.get("/articles/{article_id}", response_model=ArticleDetail, tags=["Articles"])
 async def get_article(
     article_id: int,
@@ -383,7 +434,14 @@ async def get_scraping_jobs(
 
 @app.get("/stats", response_model=StatsResponse, tags=["Statistics"])
 async def get_stats(db: Session = Depends(get_db)):
-    """Get application statistics."""
+    """Get application statistics with caching."""
+    # Try to get from cache first
+    cached = cache_service.get("stats")
+    if cached:
+        logger.debug("Returning cached stats")
+        return StatsResponse(**cached)
+    
+    # Calculate stats
     total_urls = db.query(URL).filter(URL.is_active == True).count()
     total_articles = db.query(Article).filter(Article.is_active == True).count()
     total_criteria = db.query(Criteria).filter(Criteria.is_active == True).count()
@@ -395,13 +453,18 @@ async def get_stats(db: Session = Depends(get_db)):
         ScrapingJob.status.in_(["pending", "running"])
     ).count()
     
-    return StatsResponse(
-        total_urls=total_urls,
-        total_articles=total_articles,
-        total_criteria=total_criteria,
-        unseen_articles=unseen_articles,
-        active_jobs=active_jobs
-    )
+    stats = {
+        "total_urls": total_urls,
+        "total_articles": total_articles,
+        "total_criteria": total_criteria,
+        "unseen_articles": unseen_articles,
+        "active_jobs": active_jobs
+    }
+    
+    # Cache for 30 seconds
+    cache_service.set("stats", stats, ttl=30)
+    
+    return StatsResponse(**stats)
 
 
 if __name__ == "__main__":

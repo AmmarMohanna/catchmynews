@@ -168,6 +168,17 @@ def fetch_articles(criteria_id: Optional[int] = None, min_relevance: float = 0.0
         return []
 
 
+def search_articles(query: str) -> List[Dict]:
+    """Search articles by query."""
+    try:
+        response = requests.get(f"{BACKEND_URL}/articles/search", params={"q": query, "limit": 50})
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        st.error(f"Error searching articles: {e}")
+        return []
+
+
 def trigger_scrape():
     """Trigger scraping for all URLs."""
     try:
@@ -376,8 +387,22 @@ def main():
     with tab1:
         st.header("News Feed")
         
-        # Filters
-        col1, col2, col3 = st.columns([2, 1, 1])
+        # Search bar
+        search_query = st.text_input("🔍 Search articles", placeholder="Search by title, summary, or content...")
+        
+        if search_query:
+            # Show search results
+            articles = search_articles(search_query)
+            if articles:
+                st.info(f"Found {len(articles)} articles matching '{search_query}'")
+                for article in articles:
+                    render_article_card(article)
+            else:
+                st.warning(f"No articles found for '{search_query}'")
+        else:
+            # Show regular filtered feed
+            # Filters
+            col1, col2, col3 = st.columns([2, 1, 1])
         
         with col1:
             criteria_list = fetch_criteria()
@@ -400,23 +425,23 @@ def main():
                     step=0.1
                 )
         
-        with col3:
-            unseen_only = st.checkbox("Unseen Only", value=False)
-        
-        # Fetch and display articles
-        articles = fetch_articles(
-            criteria_id=st.session_state.selected_criteria,
-            min_relevance=st.session_state.min_relevance,
-            unseen_only=unseen_only
-        )
-        
-        if articles:
-            st.info(f"Showing {len(articles)} articles")
+            with col3:
+                unseen_only = st.checkbox("Unseen Only", value=False)
             
-            for article in articles:
-                render_article_card(article)
-        else:
-            st.info("No articles found. Add some URLs and click UPDATE to start scraping!")
+            # Fetch and display articles
+            articles = fetch_articles(
+                criteria_id=st.session_state.selected_criteria,
+                min_relevance=st.session_state.min_relevance,
+                unseen_only=unseen_only
+            )
+            
+            if articles:
+                st.info(f"Showing {len(articles)} articles")
+                
+                for article in articles:
+                    render_article_card(article)
+            else:
+                st.info("No articles found. Add some URLs and click UPDATE to start scraping!")
     
     # Tab 2: URL Management
     with tab2:

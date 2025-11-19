@@ -64,19 +64,23 @@ class WebScraper:
     async def scrape_website(
         self, 
         url: str, 
+        etag: Optional[str] = None,
+        last_modified: Optional[str] = None,
         max_depth: int = None,
         max_pages: int = None
-    ) -> List[Dict]:
+    ) -> Tuple[List[Dict], Optional[str], Optional[str]]:
         """
-        Scrape a website following internal links.
+        Scrape a website following internal links with incremental scraping support.
         
         Args:
             url: Starting URL to scrape
+            etag: Previous ETag for conditional requests
+            last_modified: Previous Last-Modified header
             max_depth: Maximum depth to follow links (default from settings)
             max_pages: Maximum pages to scrape (default from settings)
             
         Returns:
-            List of scraped articles with metadata
+            Tuple of (articles list, new etag, new last_modified)
         """
         if max_depth is None:
             max_depth = settings.MAX_SCRAPING_DEPTH
@@ -87,20 +91,32 @@ class WebScraper:
         
         self.visited_urls.clear()
         articles = []
+        captured_etag = None
+        captured_last_modified = None
         
         async with httpx.AsyncClient(timeout=settings.REQUEST_TIMEOUT) as client:
-            await self._scrape_recursive(
-                client=client,
-                url=url,
-                base_domain=self._extract_domain(url),
-                current_depth=0,
-                max_depth=max_depth,
-                articles=articles,
-                max_pages=max_pages
-            )
+            # Try incremental scraping on the main page first
+            response = await self._fetch_url(client, url, etag, last_modified)
+            
+            if response:
+                # Capture cache headers
+                captured_etag = response.headers.get('etag')
+                captured_last_modified = response.headers.get('last-modified')
+                
+                await self._scrape_recursive(
+                    client=client,
+                    url=url,
+                    base_domain=self._extract_domain(url),
+                    current_depth=0,
+                    max_depth=max_depth,
+                    articles=articles,
+                    max_pages=max_pages
+                )
+            else:
+                logger.info(f"Content not modified for {url}, skipping scrape")
             
         logger.info(f"Scraped {len(articles)} articles from {url}")
-        return articles
+        return articles, captured_etag, captured_last_modified
     
     async def _scrape_recursive(
         self,
@@ -161,8 +177,14 @@ class WebScraper:
                     current_depth + 1, max_depth, articles, max_pages
                 )
     
-    async def _fetch_url(self, client: httpx.AsyncClient, url: str) -> Optional[httpx.Response]:
-        """Fetch a URL with error handling."""
+    async def _fetch_url(
+        self, 
+        client: httpx.AsyncClient, 
+        url: str, 
+        etag: Optional[str] = None,
+        last_modified: Optional[str] = None
+    ) -> Optional[httpx.Response]:
+        """Fetch a URL with error handling and conditional requests."""
         try:
             headers = {
                 'User-Agent': settings.USER_AGENT,
@@ -170,7 +192,19 @@ class WebScraper:
                 'Accept-Language': 'en-US,en;q=0.5',
             }
             
+            # Add conditional request headers for incremental scraping
+            if etag:
+                headers['If-None-Match'] = etag
+            if last_modified:
+                headers['If-Modified-Since'] = last_modified
+            
             response = await client.get(url, headers=headers, follow_redirects=True)
+            
+            # Check for 304 Not Modified
+            if response.status_code == 304:
+                logger.info(f"Content not modified for {url}")
+                return None
+            
             response.raise_for_status()
             
             # Only process HTML content

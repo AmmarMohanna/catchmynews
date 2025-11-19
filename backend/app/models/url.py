@@ -21,6 +21,10 @@ class URL(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     last_scraped_at = Column(DateTime, nullable=True)
     
+    # Incremental scraping support
+    last_etag = Column(String, nullable=True)  # ETag for cache validation
+    last_modified = Column(String, nullable=True)  # Last-Modified header
+    
     # Relationships
     articles = relationship("Article", back_populates="source_url", cascade="all, delete-orphan")
     scraping_jobs = relationship("ScrapingJob", back_populates="url", cascade="all, delete-orphan")
