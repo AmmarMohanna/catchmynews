@@ -16,67 +16,30 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Color schemes
-COLOR_SCHEMES = {
-    "Default": {
-        "primary": "#1f77b4",
-        "secondary": "#ff7f0e",
-        "background": "#f0f2f6",
-        "text": "#262730"
-    },
-    "Dark": {
-        "primary": "#00d4ff",
-        "secondary": "#ff6b6b",
-        "background": "#0e1117",
-        "text": "#fafafa"
-    },
-    "Ocean": {
-        "primary": "#006494",
-        "secondary": "#13293d",
-        "background": "#e8f1f5",
-        "text": "#13293d"
-    },
-    "Forest": {
-        "primary": "#2d6a4f",
-        "secondary": "#52b788",
-        "background": "#d8f3dc",
-        "text": "#1b4332"
-    },
-    "Sunset": {
-        "primary": "#e63946",
-        "secondary": "#f77f00",
-        "background": "#fefae0",
-        "text": "#2b2d42"
-    }
-}
-
 # Initialize session state
-if "color_scheme" not in st.session_state:
-    st.session_state.color_scheme = "Default"
 if "selected_criteria" not in st.session_state:
     st.session_state.selected_criteria = None
 if "min_relevance" not in st.session_state:
     st.session_state.min_relevance = 0.5
 
 
-def get_color_scheme():
-    """Get current color scheme."""
-    return COLOR_SCHEMES[st.session_state.color_scheme]
-
-
 def apply_custom_css():
-    """Apply custom CSS based on selected color scheme."""
-    colors = get_color_scheme()
+    """Apply custom CSS styling."""
+    # Fixed color scheme
+    primary = "#1f77b4"
+    secondary = "#ff7f0e"
+    text = "#262730"
     
     st.markdown(f"""
     <style>
         .news-card {{
             padding: 1.5rem;
+            padding-bottom: 0.5rem;
             border-radius: 0.5rem;
             background-color: white;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            margin-bottom: 1rem;
-            border-left: 4px solid {colors['primary']};
+            margin-bottom: 0.5rem;
+            border-left: 4px solid {primary};
             transition: transform 0.2s;
         }}
         .news-card:hover {{
@@ -84,13 +47,13 @@ def apply_custom_css():
             box-shadow: 0 4px 8px rgba(0,0,0,0.15);
         }}
         .news-title {{
-            color: {colors['primary']};
+            color: {primary};
             font-size: 1.2rem;
             font-weight: 600;
             margin-bottom: 0.5rem;
         }}
         .news-summary {{
-            color: {colors['text']};
+            color: {text};
             font-size: 0.95rem;
             line-height: 1.5;
             margin-bottom: 0.75rem;
@@ -105,14 +68,14 @@ def apply_custom_css():
         .tag {{
             padding: 0.25rem 0.5rem;
             border-radius: 0.25rem;
-            background-color: {colors['secondary']};
+            background-color: {secondary};
             color: white;
             font-size: 0.8rem;
         }}
         .category {{
             padding: 0.25rem 0.5rem;
             border-radius: 0.25rem;
-            background-color: {colors['primary']};
+            background-color: {primary};
             color: white;
             font-size: 0.8rem;
         }}
@@ -137,7 +100,7 @@ def apply_custom_css():
         .stat-card {{
             padding: 1rem;
             border-radius: 0.5rem;
-            background: linear-gradient(135deg, {colors['primary']}, {colors['secondary']});
+            background: linear-gradient(135deg, {primary}, {secondary});
             color: white;
             text-align: center;
         }}
@@ -292,13 +255,17 @@ def mark_article_seen(article_ids: List[int]):
 
 def render_article_card(article: Dict):
     """Render a news article card."""
-    colors = get_color_scheme()
+    
+    # Escape HTML in title and summary
+    import html
+    title = html.escape(article.get('title', 'No Title'))
+    summary = html.escape(article.get('summary', 'No summary available.'))
     
     # Build categories HTML
-    categories_html = " ".join([f'<span class="category">{cat}</span>' for cat in article.get("categories", [])])
+    categories_html = " ".join([f'<span class="category">{html.escape(cat)}</span>' for cat in article.get("categories", [])])
     
     # Build tags HTML
-    tags_html = " ".join([f'<span class="tag">{tag}</span>' for tag in article.get("tags", [])])
+    tags_html = " ".join([f'<span class="tag">{html.escape(tag)}</span>' for tag in article.get("tags", [])])
     
     # Get relevance score if criteria is selected
     relevance_html = ""
@@ -310,43 +277,42 @@ def render_article_card(article: Dict):
     # Unseen badge
     unseen_badge = '<span class="unseen-badge">NEW</span>' if not article.get("is_seen", True) else ""
     
-    # Format timestamp
-    scraped_at = article.get("scraped_at", "")
-    if scraped_at:
+    # Format published date if available
+    published_html = ""
+    published_at = article.get("published_at")
+    if published_at:
         try:
-            dt = datetime.fromisoformat(scraped_at.replace("Z", "+00:00"))
-            time_str = dt.strftime("%Y-%m-%d %H:%M")
+            dt = datetime.fromisoformat(published_at.replace("Z", "+00:00"))
+            date_str = dt.strftime("%Y-%m-%d %H:%M")
+            published_html = f'<span style="margin-left: auto; opacity: 0.7;">Published: {date_str}</span>'
         except:
-            time_str = scraped_at[:16]
-    else:
-        time_str = "Unknown"
+            pass
     
+    # Complete card HTML
     st.markdown(f"""
     <div class="news-card">
         <div class="news-title">
-            {article.get('title', 'No Title')}{unseen_badge}
+            {title}{unseen_badge}
         </div>
         <div class="news-summary">
-            {article.get('summary', 'No summary available.')}
+            {summary}
         </div>
         <div class="news-meta">
             {categories_html}
             {tags_html}
             {relevance_html}
-            <span style="margin-left: auto; opacity: 0.7;">📅 {time_str}</span>
+            {published_html}
         </div>
     </div>
     """, unsafe_allow_html=True)
     
-    col1, col2 = st.columns([1, 5])
+    # Action buttons right after (will appear below card)
+    col1, col2, col3 = st.columns([1, 1, 8])
     with col1:
-        if st.button("🔗 Open", key=f"open_{article['id']}"):
-            st.markdown(f"[Open Article]({article['url']})", unsafe_allow_html=True)
-            # Mark as seen
-            mark_article_seen([article['id']])
+        st.link_button("🔗 Open", article['url'], use_container_width=True)
     with col2:
         if not article.get("is_seen", True):
-            if st.button("✓ Mark as Seen", key=f"seen_{article['id']}"):
+            if st.button("✓ Seen", key=f"seen_{article['id']}", use_container_width=True):
                 mark_article_seen([article['id']])
                 st.rerun()
 
@@ -358,16 +324,6 @@ def main():
     # Sidebar
     with st.sidebar:
         st.title("📰 NewsCatcher")
-        st.markdown("---")
-        
-        # Color scheme selector
-        st.subheader("🎨 Theme")
-        st.session_state.color_scheme = st.selectbox(
-            "Color Scheme",
-            options=list(COLOR_SCHEMES.keys()),
-            index=list(COLOR_SCHEMES.keys()).index(st.session_state.color_scheme)
-        )
-        
         st.markdown("---")
         
         # Stats
@@ -507,30 +463,50 @@ def main():
         
         # Add new criteria
         with st.expander("➕ Add New Criteria", expanded=False):
+            st.info("💡 **Matching Logic**: Articles are matched using simple keyword search. Both keywords and sentence words (excluding common words) are used for matching.")
+            
             crit_name = st.text_input("Criteria Name", placeholder="e.g., AI & Machine Learning")
-            crit_desc = st.text_area("Description", placeholder="Optional description")
-            crit_keywords = st.text_input("Keywords (comma-separated)", placeholder="AI, machine learning, neural networks")
-            crit_prompt = st.text_area("Custom Prompt", placeholder="Optional: Describe what you're interested in")
+            crit_desc = st.text_area("Description (optional)", placeholder="For your reference only")
+            
+            st.markdown("**Keywords (optional)**")
+            crit_keywords = st.text_input(
+                "Comma-separated keywords",
+                placeholder="AI, machine learning, neural networks, GPT",
+                label_visibility="collapsed"
+            )
+            
+            st.markdown("**Sentence (optional)**")
+            crit_prompt = st.text_area(
+                "Natural language description",
+                placeholder="Articles about artificial intelligence and deep learning applications",
+                label_visibility="collapsed",
+                help="Words from this sentence will be extracted and used for keyword matching (common words like 'the', 'a', 'is' are filtered out)"
+            )
             
             if st.button("Add Criteria"):
                 if crit_name:
                     keywords = [k.strip() for k in crit_keywords.split(",") if k.strip()]
-                    if add_criteria(crit_name, crit_desc, keywords, crit_prompt):
+                    if not keywords and not crit_prompt:
+                        st.warning("Please enter either keywords or a sentence")
+                    elif add_criteria(crit_name, crit_desc, keywords, crit_prompt):
                         st.rerun()
                 else:
                     st.warning("Please enter a criteria name")
         
         # AI Suggestions
-        with st.expander("💡 Get AI Suggestions", expanded=False):
-            if st.button("Generate Suggestions"):
-                with st.spinner("Analyzing articles..."):
+        with st.expander("💡 Get AI Recommendations", expanded=False):
+            st.info("Uses LLM to analyze your articles and suggest criteria ideas based on common themes")
+            if st.button("Generate Recommendations"):
+                with st.spinner("Analyzing articles with AI..."):
                     suggestions = fetch_criteria_suggestions()
                     if suggestions:
-                        st.success(f"Found {len(suggestions)} suggestions!")
+                        st.success(f"Found {len(suggestions)} recommendations!")
                         for sug in suggestions:
                             st.write(f"**{sug['name']}**")
                             st.write(sug['description'])
                             st.markdown("---")
+                    else:
+                        st.warning("No articles found to analyze. Scrape some articles first!")
         
         # List existing criteria
         st.subheader("Your Criteria")
@@ -546,9 +522,9 @@ def main():
                         if crit['description']:
                             st.caption(crit['description'])
                         if crit['keywords']:
-                            st.write("Keywords: " + ", ".join(crit['keywords']))
+                            st.write("🔑 Keywords: " + ", ".join(crit['keywords']))
                         if crit['prompt']:
-                            st.caption(f"Prompt: {crit['prompt']}")
+                            st.write("📝 Sentence: " + crit['prompt'])
                     
                     with col2:
                         if st.button("🗑️", key=f"del_crit_{crit['id']}"):

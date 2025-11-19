@@ -1,4 +1,4 @@
-# 🏗️ NewsCatcher Architecture
+# NewsCatcher Architecture
 
 This document provides a detailed overview of NewsCatcher's architecture, components, and data flow.
 
@@ -10,8 +10,8 @@ This document provides a detailed overview of NewsCatcher's architecture, compon
 │                      (Streamlit Frontend)                       │
 │                         Port: 8501                              │
 └───────────────────────────┬─────────────────────────────────────┘
-                           │ HTTP/REST
-                           ▼
+                            │ HTTP/REST
+                            ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                         API LAYER                               │
 │                        (FastAPI)                                │
@@ -22,12 +22,12 @@ This document provides a detailed overview of NewsCatcher's architecture, compon
 │  └──────────┘  └──────────┘  └──────────┘  └──────────┘      │
 └───────────────┬─────────────────────┬───────────────────────────┘
                 │                     │
-     ┌──────────┴──────────┐         │
-     ▼                     ▼         ▼
+     ┌──────────┴──────────┐          │
+     ▼                     ▼          ▼
 ┌─────────┐          ┌──────────────────┐
-│PostgreSQL│          │  Background Jobs  │
-│Database │          │  (Celery Worker)  │
-│Port:5432│          └────────┬──────────┘
+│PostgreSQL│         │  Background Jobs │
+│Database │          │  (Celery Worker) │
+│Port:5432│          └────────┬─────────┘
 └─────────┘                   │
      ▲                        ▼
      │              ┌───────────────────┐
@@ -71,14 +71,12 @@ This document provides a detailed overview of NewsCatcher's architecture, compon
 - Real-time updates and statistics
 - Article visualization and filtering
 - URL and criteria management
-- Theme customization
 
 **Key Features**:
-- 📰 News Feed with filtering
-- 🔗 URL Management
-- 🎯 Criteria Management
-- 🎨 Multiple color themes
-- 📊 Real-time statistics
+- News Feed with filtering
+- URL Management
+- Criteria Management
+- Real-time statistics
 
 **Files**:
 - `frontend/app.py` - Main Streamlit application
@@ -286,19 +284,22 @@ Update scraping_job status
 **Class**: `AIService`
 
 **Methods**:
-- `summarize_article(title, content)` - Generate summary
-- `categorize_article(title, content)` - Extract categories & tags
-- `match_criteria(article, criteria)` - Calculate relevance (0-1)
-- `suggest_criteria(articles)` - Generate criteria suggestions
+- `summarize_article(title, content)` - Generate summary using LLM
+- `categorize_article(title, content)` - Extract categories & tags using LLM
+- `match_criteria(article, criteria)` - Calculate relevance (0-1) using keyword matching
+- `suggest_criteria(articles)` - Generate criteria suggestions using LLM
 - `batch_process_articles(articles)` - Bulk processing
 
 **OpenAI API Usage**:
 - Model: `gpt-4o-mini` (fast & cost-effective)
 - Temperature: 0.1-0.7 (depending on task)
 - Max tokens: Limited per task
+- Used for: Summarization, categorization, and criteria suggestions only
+- NOT used for: Article matching (uses keyword matching instead)
 
 **Cost Optimization**:
 - Content truncation (max 3000 chars for summarization)
+- Keyword-based matching (no API calls)
 - Batch processing where possible
 - Caching of results
 
@@ -482,9 +483,9 @@ class Settings(BaseSettings):
 ---
 
 This architecture is designed for:
-- ✅ Easy local development
-- ✅ Simple deployment (Docker Compose)
-- ✅ Horizontal scalability
-- ✅ Maintainability
-- ✅ Extensibility
+- Easy local development
+- Simple deployment (Docker Compose)
+- Horizontal scalability
+- Maintainability
+- Extensibility
 

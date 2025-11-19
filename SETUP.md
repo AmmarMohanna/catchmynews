@@ -1,4 +1,4 @@
-# 🚀 Setup Guide for NewsCatcher
+# Setup Guide for NewsCatcher
 
 This guide will walk you through setting up NewsCatcher from scratch.
 
@@ -173,9 +173,9 @@ Open your web browser and navigate to:
 
 ### Issue: Port Already in Use
 
-**Error**: "Port 8501/8000/5432 is already allocated"
+Error: "Port 8501/8000/5432 is already allocated"
 
-**Solution**:
+Solution:
 ```bash
 # Find and stop the conflicting service
 # For macOS/Linux:
@@ -187,17 +187,17 @@ lsof -ti:8000 | xargs kill -9
 
 ### Issue: Docker Daemon Not Running
 
-**Error**: "Cannot connect to the Docker daemon"
+Error: "Cannot connect to the Docker daemon"
 
-**Solution**:
+Solution:
 - Start Docker Desktop application
 - Wait for Docker to fully start (whale icon in menu bar/system tray)
 
 ### Issue: Out of Memory
 
-**Error**: Container keeps restarting
+Error: Container keeps restarting
 
-**Solution**:
+Solution:
 1. Open Docker Desktop
 2. Go to Settings → Resources
 3. Increase Memory to at least 4GB
@@ -205,9 +205,9 @@ lsof -ti:8000 | xargs kill -9
 
 ### Issue: API Key Invalid
 
-**Error**: "OpenAI API authentication failed"
+Error: "OpenAI API authentication failed"
 
-**Solution**:
+Solution:
 1. Check your API key in `.env`
 2. Verify key is valid at https://platform.openai.com/api-keys
 3. Ensure there are no extra spaces or quotes around the key
@@ -215,9 +215,9 @@ lsof -ti:8000 | xargs kill -9
 
 ### Issue: Database Connection Failed
 
-**Error**: "Could not connect to database"
+Error: "Could not connect to database"
 
-**Solution**:
+Solution:
 ```bash
 # Stop all services
 docker-compose down
@@ -288,7 +288,7 @@ Edit `backend/app/config.py`:
 OPENAI_MODEL = "gpt-4"  # Default: gpt-4o-mini
 ```
 
-**Note**: GPT-4 is more capable but more expensive.
+Note: GPT-4 is more capable but more expensive.
 
 ### Enable Debug Logging
 
@@ -368,5 +368,5 @@ Key points:
 
 ---
 
-🎉 **You're all set!** Enjoy using NewsCatcher!
+You're all set! Enjoy using NewsCatcher!
 

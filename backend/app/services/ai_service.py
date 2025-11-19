@@ -19,32 +19,34 @@ class AIService:
     
     async def summarize_article(self, title: str, content: str) -> str:
         """
-        Generate a concise summary of an article.
+        Generate a concise summary of an article in the same language as the original.
         
         Args:
             title: Article title
             content: Article content
             
         Returns:
-            Summary text
+            Summary text in the original language
         """
         try:
             # Truncate content if too long (to save tokens)
             max_content_length = 3000
             truncated_content = content[:max_content_length] if len(content) > max_content_length else content
             
-            prompt = f"""Summarize the following article in 2-3 sentences, focusing on the key points and news value:
+            prompt = f"""Summarize the following article in 2-3 sentences, focusing on the key points and news value.
+
+IMPORTANT: Write the summary in the SAME LANGUAGE as the original article. If the article is in Arabic, write in Arabic. If in English, write in English. Match the original language exactly.
 
 Title: {title}
 
 Content: {truncated_content}
 
-Summary:"""
+Summary (in the same language as above):"""
             
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": "You are a helpful assistant that summarizes news articles concisely."},
+                    {"role": "system", "content": "You are a helpful assistant that summarizes news articles concisely in the same language as the original text. Always preserve the original language."},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.3,
@@ -61,7 +63,7 @@ Summary:"""
     
     async def categorize_article(self, title: str, content: str, summary: str = None) -> Dict[str, List[str]]:
         """
-        Categorize an article and extract tags.
+        Categorize an article and extract tags in the same language as the original.
         
         Args:
             title: Article title
@@ -69,7 +71,7 @@ Summary:"""
             summary: Optional pre-generated summary
             
         Returns:
-            Dictionary with 'categories' and 'tags' lists
+            Dictionary with 'categories' and 'tags' lists in original language
         """
         try:
             text_to_analyze = summary if summary else content[:1000]
@@ -77,6 +79,8 @@ Summary:"""
             prompt = f"""Analyze the following article and provide:
 1. Up to 3 broad categories (e.g., Technology, Business, Health, Politics, Science, etc.)
 2. Up to 5 specific tags/topics mentioned
+
+IMPORTANT: Provide categories and tags in the SAME LANGUAGE as the article. If the article is in Arabic, use Arabic. If in English, use English.
 
 Article Title: {title}
 Content: {text_to_analyze}
@@ -90,7 +94,7 @@ Respond in JSON format:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
-                    {"role": "system", "content": "You are a helpful assistant that categorizes news articles. Always respond with valid JSON."},
+                    {"role": "system", "content": "You are a helpful assistant that categorizes news articles in the same language as the original text. Always respond with valid JSON and preserve the original language."},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.2,
@@ -123,58 +127,64 @@ Respond in JSON format:
         criteria_prompt: str = None
     ) -> float:
         """
-        Calculate relevance score of an article against criteria.
+        Calculate relevance score of an article against criteria using keyword matching.
         
         Args:
             article_title: Article title
             article_summary: Article summary
             criteria_keywords: List of keywords to match
-            criteria_prompt: Natural language description of interests
+            criteria_prompt: Natural language description (also used for keyword matching)
             
         Returns:
             Relevance score (0.0 to 1.0)
         """
         try:
-            # Build criteria description
-            criteria_desc = ""
-            if criteria_keywords:
-                criteria_desc += f"Keywords: {', '.join(criteria_keywords)}\n"
-            if criteria_prompt:
-                criteria_desc += f"Interest: {criteria_prompt}"
-            
-            if not criteria_desc:
+            if not criteria_keywords and not criteria_prompt:
                 return 0.0
             
-            prompt = f"""Rate how relevant this article is to the given criteria on a scale of 0.0 to 1.0:
-
-Article Title: {article_title}
-Article Summary: {article_summary}
-
-Criteria:
-{criteria_desc}
-
-Respond with ONLY a number between 0.0 and 1.0, where:
-- 0.0 = completely irrelevant
-- 0.5 = somewhat relevant
-- 1.0 = highly relevant
-
-Relevance score:"""
+            # Combine title and summary for matching
+            article_text = f"{article_title} {article_summary}".lower()
             
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant that rates article relevance. Always respond with only a number."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.1,
-                max_tokens=10
-            )
+            # Build list of all keywords to match
+            all_keywords = []
             
-            score_text = response.choices[0].message.content.strip()
-            score = float(score_text)
-            score = max(0.0, min(1.0, score))  # Clamp to [0, 1]
+            # Add explicit keywords
+            if criteria_keywords:
+                all_keywords.extend([kw.lower().strip() for kw in criteria_keywords])
             
-            logger.debug(f"Relevance score for '{article_title[:50]}...': {score}")
+            # Extract keywords from prompt (simple word extraction)
+            if criteria_prompt:
+                # Split prompt into words, filter out common words
+                common_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 
+                               'of', 'with', 'by', 'from', 'about', 'as', 'is', 'are', 'was', 'were',
+                               'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did',
+                               'will', 'would', 'should', 'could', 'may', 'might', 'must', 'can',
+                               'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it',
+                               'we', 'they', 'what', 'which', 'who', 'when', 'where', 'why', 'how'}
+                
+                prompt_words = [word.lower().strip('.,!?;:()[]{}"\'-') 
+                               for word in criteria_prompt.split()]
+                prompt_keywords = [w for w in prompt_words 
+                                  if len(w) > 2 and w not in common_words]
+                all_keywords.extend(prompt_keywords)
+            
+            if not all_keywords:
+                return 0.0
+            
+            # Count keyword matches
+            matched_count = 0
+            for keyword in all_keywords:
+                if keyword in article_text:
+                    matched_count += 1
+            
+            # Calculate score as percentage of matched keywords
+            score = matched_count / len(all_keywords)
+            
+            # Boost score if multiple matches (diminishing returns)
+            if matched_count > 1:
+                score = min(score * 1.2, 1.0)
+            
+            logger.debug(f"Keyword matching for '{article_title[:50]}...': {matched_count}/{len(all_keywords)} keywords matched, score={score:.2f}")
             return score
             
         except Exception as e:

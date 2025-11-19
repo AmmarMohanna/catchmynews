@@ -1,11 +1,11 @@
-# 🚀 NewsCatcher - Quickstart Guide
+# NewsCatcher - Quickstart Guide
 
 Get up and running with NewsCatcher in 5 minutes!
 
 ## Prerequisites
 
-✅ Docker Desktop installed and running  
-✅ OpenAI API key ([Get one here](https://platform.openai.com/api-keys))
+- Docker Desktop installed and running  
+- OpenAI API key ([Get one here](https://platform.openai.com/api-keys))
 
 ## Installation (3 Steps)
 
@@ -62,22 +62,24 @@ Open your browser: **http://localhost:8501**
 - Click **"➕ Add New Criteria"**
 - Fill in:
   - **Name**: "Tech News"
-  - **Keywords**: "AI, technology, programming"
+  - **Keywords**: "AI, technology, programming, machine learning"
+  - **Sentence** (optional): "Articles about software development and emerging tech"
+  - Note: Both keywords and sentence words are used for matching
 - Click **"Add Criteria"**
 
 ### 3. Start Scraping
 
-- Click the big **"🔄 UPDATE"** button in the sidebar
+- Click the big **"UPDATE"** button in the sidebar
 - Wait 30-60 seconds
 - Go to **"News Feed"** tab to see results!
 
-## That's It! 🎉
+## That's It!
 
 You now have:
-- ✅ A working news aggregator
-- ✅ AI-powered summarization
-- ✅ Automatic categorization
-- ✅ Relevance filtering
+- A working news aggregator
+- AI-powered summarization and categorization
+- Keyword-based relevance matching
+- LLM-powered criteria recommendations
 
 ## What's Next?
 
@@ -95,8 +97,7 @@ Popular news sources to try:
 1. **Filter by Criteria**: Select different criteria to see relevant articles
 2. **Adjust Relevance**: Use the slider to filter by relevance score
 3. **Unseen Articles**: Toggle to see only new articles
-4. **Change Theme**: Try different color schemes in the sidebar
-5. **AI Suggestions**: Let AI suggest criteria based on your content
+4. **AI Suggestions**: Let AI suggest criteria based on your content
 
 ### Advanced Usage
 
@@ -163,18 +164,18 @@ docker-compose logs -f
 
 ## Getting Help
 
-📖 **Full Documentation**: See `README.md`  
-🏗️ **Architecture Details**: See `ARCHITECTURE.md`  
-⚙️ **Setup Guide**: See `SETUP.md`  
-🤝 **Contributing**: See `CONTRIBUTING.md`
+- **Full Documentation**: See `README.md`  
+- **Architecture Details**: See `ARCHITECTURE.md`  
+- **Setup Guide**: See `SETUP.md`  
+- **Contributing**: See `CONTRIBUTING.md`
 
 ## Key Features to Try
 
 ### 1. Subdomain Discovery
 Add a main domain and watch it discover subdomains automatically!
 
-### 2. Relevance Scoring
-Each article gets a relevance score (0-100%) for each criteria.
+### 2. Keyword-Based Matching
+Each article gets a relevance score (0-100%) based on keyword matches with your criteria.
 
 ### 3. AI Summarization
 Every article is automatically summarized for quick reading.
@@ -184,9 +185,6 @@ AI automatically categorizes and tags each article.
 
 ### 5. Seen/Unseen Tracking
 Keep track of what you've read with the "NEW" badge.
-
-### 6. Multiple Color Themes
-Choose from 5 different color schemes!
 
 ## Performance Tips
 
@@ -201,12 +199,15 @@ MAX_PAGES_PER_DOMAIN = 25  # Reduce from 50
 
 ### For Better Results
 
-Use specific criteria:
+Use specific keywords and/or descriptive sentences:
 
 ```
-✅ Good: "AI, machine learning, neural networks, GPT"
-❌ Too broad: "technology"
+Good Keywords: "AI, machine learning, neural networks, GPT, deep learning"
+Good Sentence: "Articles about artificial intelligence and natural language processing"
+Too broad: Just "technology"
 ```
+
+Tip: Combine both keywords AND a sentence for best results!
 
 ## Production Deployment
 
@@ -262,14 +263,14 @@ A: Yes, it stays in your `.env` file and is never exposed.
 
 Having issues? Check:
 
-1. ✅ Docker is running
-2. ✅ API key is correct in `.env`
-3. ✅ Services are healthy: `docker-compose ps`
-4. ✅ Logs for errors: `docker-compose logs -f`
+1. Docker is running
+2. API key is correct in `.env`
+3. Services are healthy: `docker-compose ps`
+4. Logs for errors: `docker-compose logs -f`
 
 ---
 
-**Happy News Catching! 📰**
+Happy News Catching!
 
-Made with ❤️ using Python, FastAPI, and Streamlit
+Made with Python, FastAPI, and Streamlit
 

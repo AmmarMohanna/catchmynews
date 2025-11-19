@@ -1,24 +1,23 @@
-# 📰 NewsCatcher
+# NewsCatcher
 
 A powerful, AI-powered news aggregation and analysis platform that scrapes multiple websites, discovers subdomains, and intelligently categorizes content based on your interests.
 
-## ✨ Features
+## Features
 
-- **🔗 Dynamic URL Management**: Add/remove URLs through an intuitive UI
-- **🌐 Subdomain Discovery**: Automatically finds and scrapes subdomains via web crawling
-- **🤖 AI-Powered Analysis**: 
+- **Dynamic URL Management**: Add/remove URLs through an intuitive UI
+- **Subdomain Discovery**: Automatically finds and scrapes subdomains via web crawling
+- **AI-Powered Analysis**: 
   - Automatic article summarization
   - Content categorization and tagging
-  - Relevance scoring against custom criteria
+  - Keyword-based relevance matching
   - AI-suggested criteria based on scraped content
-- **🎯 Custom Criteria**: Define search interests using keywords or natural language prompts
-- **⚡ Background Scraping**: Fast, async scraping with Celery workers
-- **📊 Smart Caching**: Redis-backed caching for optimal performance
-- **👁️ Seen/Unseen Tracking**: Keep track of new articles
-- **🎨 Configurable Themes**: Multiple color schemes for the UI
-- **🐳 Fully Dockerized**: Easy deployment with docker-compose
+- **Custom Criteria**: Define search interests using keywords or natural language prompts
+- **Background Scraping**: Fast, async scraping with Celery workers
+- **Smart Caching**: Redis-backed caching for optimal performance
+- **Seen/Unseen Tracking**: Keep track of new articles
+- **Fully Dockerized**: Easy deployment with docker-compose
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌─────────────────┐
@@ -51,7 +50,7 @@ A powerful, AI-powered news aggregation and analysis platform that scrapes multi
 - **Scraping**: BeautifulSoup4 + httpx
 - **Containerization**: Docker + Docker Compose
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -98,7 +97,7 @@ Open your browser and go to: **http://localhost:8501**
 3. Click the **UPDATE** button to start scraping
 4. Watch as articles are discovered, scraped, and analyzed!
 
-## 📖 Usage Guide
+## Usage Guide
 
 ### Managing URLs
 
@@ -113,16 +112,19 @@ Open your browser and go to: **http://localhost:8501**
 2. Click **"Add New Criteria"**
 3. Fill in:
    - **Name**: e.g., "AI & Machine Learning"
-   - **Keywords**: e.g., "AI, machine learning, neural networks"
-   - **Custom Prompt**: Optional natural language description
+   - **Keywords (optional)**: e.g., "AI, machine learning, neural networks, GPT"
+   - **Sentence (optional)**: e.g., "Articles about artificial intelligence and deep learning"
+   - Both keywords and sentence words are used for matching (common words filtered)
 4. Save the criteria
 
-### Getting AI Suggestions
+Note: You can provide keywords, a sentence, or both. Keywords are used directly for matching, while sentences are processed to extract meaningful words (excluding common words like "the", "a", "is").
+
+### Getting AI Recommendations
 
 1. After scraping some articles, go to **"Manage Criteria"**
-2. Click **"Get AI Suggestions"**
-3. Review AI-generated criteria based on your content
-4. Use them as inspiration for your own criteria
+2. Click **"Get AI Recommendations"**
+3. The LLM analyzes your articles and suggests criteria based on common themes
+4. Use these recommendations as inspiration for your own criteria
 
 ### Filtering Articles
 
@@ -132,16 +134,7 @@ Open your browser and go to: **http://localhost:8501**
 4. Toggle **"Unseen Only"** to show only new articles
 5. Click on article cards to read more
 
-### Themes
-
-Change the color scheme from the sidebar:
-- Default
-- Dark
-- Ocean
-- Forest
-- Sunset
-
-## 🧪 Running Tests
+## Running Tests
 
 ### Backend Tests
 
@@ -168,7 +161,7 @@ docker-compose exec backend bash run_tests.sh
 - **Model Tests**: Test database models and relationships
 - **Scraper Tests**: Test web scraping functionality
 
-## 🔧 Configuration
+## Configuration
 
 ### Environment Variables
 
@@ -195,7 +188,7 @@ REQUEST_TIMEOUT = 30          # Request timeout in seconds
 RATE_LIMIT_DELAY = 1.0        # Delay between requests
 ```
 
-## 📊 API Documentation
+## API Documentation
 
 Interactive API documentation is available at:
 - **Swagger UI**: http://localhost:8000/docs
@@ -228,7 +221,7 @@ Interactive API documentation is available at:
 #### Statistics
 - `GET /stats` - Get application statistics
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Application won't start
 
@@ -261,7 +254,7 @@ docker-compose up -d
 - Check your OpenAI account has credits
 - Restart services after changing `.env`: `docker-compose restart`
 
-## 🗂️ Project Structure
+## Project Structure
 
 ```
 NewsCatcher/
@@ -288,7 +281,7 @@ NewsCatcher/
 └── README.md
 ```
 
-## 🔒 Security Notes
+## Security Notes
 
 ### For Production Deployment
 
@@ -308,7 +301,7 @@ The scraper respects website policies. However:
 - Consider reaching out to site owners for permission
 - Use responsibly and ethically
 
-## 📝 Development
+## Development
 
 ### Adding New Features
 
@@ -361,7 +354,7 @@ streamlit run app.py
 
 </details>
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please:
 
@@ -371,18 +364,18 @@ Contributions are welcome! Please:
 4. Add tests for new features
 5. Submit a pull request
 
-## 📄 License
+## License
 
 This project is provided as-is for educational purposes.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - OpenAI for the GPT API
 - FastAPI for the excellent web framework
 - Streamlit for the amazing UI framework
 - The open-source community
 
-## 📧 Support
+## Support
 
 For issues or questions:
 1. Check the Troubleshooting section
@@ -390,6 +383,3 @@ For issues or questions:
 3. Check API docs: http://localhost:8000/docs
 
 ---
-
-**Built with ❤️ using Python, FastAPI, and Streamlit**
-
