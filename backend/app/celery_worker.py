@@ -122,16 +122,17 @@ def scrape_url_task(self, url_id: int, discover_subdomains: bool = True):
         new_articles = 0
         duplicates_skipped = 0
         for article_data in articles_data:
-            # Generate content hash for deduplication
-            content_hash = Article.generate_content_hash(
-                article_data.get('title', ''),
-                article_data.get('content', '')
-            )
+            # Generate content hash and normalized title for deduplication
+            title = article_data.get('title', '')
+            content = article_data.get('content', '')
+            content_hash = Article.generate_content_hash(title, content)
+            title_normalized = Article.normalize_title(title)
             
-            # Check if article already exists by URL or content hash
+            # Check if article already exists by URL, content hash, or normalized title
             existing = db.query(Article).filter(
                 (Article.url == article_data['url']) | 
-                (Article.content_hash == content_hash)
+                (Article.content_hash == content_hash) |
+                (Article.title_normalized == title_normalized)
             ).first()
             
             if existing:
@@ -150,8 +151,9 @@ def scrape_url_task(self, url_id: int, discover_subdomains: bool = True):
                 # Create new article
                 article = Article(
                     url=article_data['url'],
-                    title=article_data.get('title', ''),
-                    content=article_data.get('content', ''),
+                    title=title,
+                    title_normalized=title_normalized,
+                    content=content,
                     summary=article_data.get('summary', ''),
                     content_hash=content_hash,
                     source_url_id=url_id,

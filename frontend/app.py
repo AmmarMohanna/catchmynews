@@ -326,6 +326,9 @@ def render_article_card(article: Dict):
             if st.button("✓ Seen", key=f"seen_{article['id']}", use_container_width=True):
                 mark_article_seen([article['id']])
                 st.rerun()
+    
+    # Add spacing between articles
+    st.markdown("<br>", unsafe_allow_html=True)
 
 
 def main():

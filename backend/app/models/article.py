@@ -15,6 +15,7 @@ class Article(Base):
     id = Column(Integer, primary_key=True, index=True)
     url = Column(String, unique=True, nullable=False, index=True)
     title = Column(String, nullable=False)
+    title_normalized = Column(String, index=True)  # Normalized title for dedup
     content = Column(Text, nullable=True)  # Full content
     summary = Column(Text, nullable=True)  # AI-generated summary
     content_hash = Column(String(64), index=True)  # SHA-256 hash for deduplication
@@ -39,9 +40,24 @@ class Article(Base):
     @staticmethod
     def generate_content_hash(title: str, content: str) -> str:
         """Generate SHA-256 hash from title and content for deduplication."""
-        # Use title + first 500 chars of content for hash
-        text = f"{title}{content[:500]}".lower().strip()
+        # Normalize title and content: lowercase, remove extra spaces, remove punctuation
+        import re
+        normalized_title = re.sub(r'[^\w\s]', '', title.lower().strip())
+        normalized_title = ' '.join(normalized_title.split())  # Remove extra spaces
+        normalized_content = content[:500].lower().strip()
+        
+        # Use normalized title + first 500 chars of content for hash
+        text = f"{normalized_title}{normalized_content}"
         return hashlib.sha256(text.encode('utf-8')).hexdigest()
+    
+    @staticmethod
+    def normalize_title(title: str) -> str:
+        """Normalize title for duplicate detection."""
+        import re
+        # Remove punctuation, lowercase, collapse spaces
+        normalized = re.sub(r'[^\w\s]', '', title.lower().strip())
+        normalized = ' '.join(normalized.split())
+        return normalized
     
     def __repr__(self):
         return f"<Article(id={self.id}, title={self.title[:50]})>"
